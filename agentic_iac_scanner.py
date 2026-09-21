@@ -242,44 +242,53 @@ def _pdf_escape(value: str) -> str:
     return value.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
 
 
-def _pdf_lines(findings: List[Dict[str, Any]]) -> List[str]:
+def _pdf_content(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Builds styled PDF rows matching the HTML report hierarchy."""
     frameworks = sorted({item["iac_type"] for item in findings})
-    severity_counts = {severity: sum(item["severity"] == severity for item in findings) for severity in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
-    lines = [
-        "Agentic IaC Security Scan Report",
-        f"LLM Module: {SCANNER_MODEL}",
-        f"Detected IaC Languages: {', '.join(frameworks) or 'None'}",
-        f"Total Findings: {len(findings)}",
-        "Executive Summary - Findings by Severity",
-        *(f"{severity}: {severity_counts[severity]}" for severity in severity_counts),
-        "Detailed Findings (sorted Critical to Low)",
-        "",
+    counts = {severity: sum(item["severity"] == severity for item in findings) for severity in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
+    content = [
+        {"text": "Agentic IaC Security Scan Report", "style": "title"},
+        {"text": f"LLM Module: {SCANNER_MODEL}", "style": "meta"},
+        {"text": f"Detected IaC Languages: {', '.join(frameworks) or 'None'}", "style": "meta"},
+        {"text": f"Total Findings: {len(findings)}", "style": "meta"},
+        {"text": "Executive Summary", "style": "heading"},
+        {"text": "Severity                         Identified Findings", "style": "table_header"},
     ]
+    content.extend({"text": f"{severity:<30} {counts[severity]}", "style": severity.lower()} for severity in counts)
+    content.append({"text": "Detailed Findings (sorted Critical to Low)", "style": "heading"})
     for index, finding in enumerate(findings, 1):
-        lines.extend([
-            f"{index}. {finding['severity']} - {finding['title']}",
-            f"IaC Language: {finding['iac_type']}",
-            f"Full Path: {finding['file']}:{finding['line']}",
-            f"Description: {finding['description']}",
-            f"Standard: {finding['standard']}",
-            f"Vulnerable Code: {finding['vulnerable_code']}",
-            f"Recommended solution: {finding['recommended_solution']}",
-            "References:",
-            *(f"- {reference}" for reference in finding['references']),
-            "",
+        content.extend([
+            {"text": f"{index}. {finding['severity']} - {finding['title']}", "style": finding['severity'].lower()},
+            {"text": f"IaC Language: {finding['iac_type']}", "style": "label"},
+            {"text": f"Full Path: {finding['file']}:{finding['line']}", "style": "body"},
+            {"text": f"Description: {finding['description']}", "style": "body"},
+            {"text": f"Standard: {finding['standard']}", "style": "body"},
+            {"text": f"Vulnerable Code: {finding['vulnerable_code']}", "style": "code"},
+            {"text": f"Recommended solution: {finding['recommended_solution']}", "style": "fix"},
+            {"text": "References:", "style": "label"},
         ])
-    wrapped = []
-    for line in lines:
-        while len(line) > 95:
-            wrapped.append(line[:95])
-            line = line[95:]
-        wrapped.append(line)
-    return wrapped
+        content.extend({"text": f"- {reference}", "style": "reference"} for reference in finding['references'])
+        content.append({"text": "", "style": "body"})
+    return content
+
+
+def _pdf_wrap_rows(content: List[Dict[str, Any]], width: int = 92) -> List[Dict[str, Any]]:
+    rows = []
+    for item in content:
+        text = item["text"]
+        if not text:
+            rows.append(item)
+            continue
+        while len(text) > width:
+            rows.append({"text": text[:width], "style": item["style"]})
+            text = text[width:]
+        rows.append({"text": text, "style": item["style"]})
+    return rows
 
 
 def generate_pdf_report(findings: List[Dict[str, Any]], output_path: Path) -> None:
     """Writes a simple valid PDF using only the Python standard library."""
-    lines = _pdf_lines(findings)
+    lines = _pdf_wrap_rows(_pdf_content(findings))
     pages = [lines[index:index + 52] for index in range(0, len(lines), 52)] or [[]]
     objects = []
     objects.append("<< /Type /Catalog /Pages 2 0 R >>")
@@ -290,17 +299,40 @@ def generate_pdf_report(findings: List[Dict[str, Any]], output_path: Path) -> No
         page_id = next_id
         content_id = next_id + 1
         urls = []
-        for line_index, line in enumerate(page_lines):
-            urls.extend((line_index, match.group(0)) for match in re.finditer(r"https?://\S+", line))
+        for line_index, item in enumerate(page_lines):
+            urls.extend((line_index, match.group(0)) for match in re.finditer(r"https?://\S+", item["text"]))
         annotation_ids = list(range(next_id + 2, next_id + 2 + len(urls)))
         page_data.append((page_id, content_id, page_lines, urls, annotation_ids))
         page_ids.append(page_id)
         next_id += 2 + len(urls)
     font_id = next_id
     for page_id, content_id, page_lines, urls, annotation_ids in page_data:
-        stream_lines = ["BT", "/F1 9 Tf", "42 750 Td", "12 TL"]
-        for line in page_lines:
-            stream_lines.append(f"({_pdf_escape(line)}) Tj T*" )
+        stream_lines = []
+        y = 750
+        for line_index, item in enumerate(page_lines):
+            style = item["style"]
+            if style == "title":
+                size, color = 18, "0.10 0.16 0.24"
+            elif style == "heading":
+                size, color = 13, "0.10 0.16 0.24"
+            elif style == "table_header":
+                size, color = 10, "0.10 0.16 0.24"
+            elif style == "critical":
+                size, color = 10, "0.86 0.15 0.15"
+            elif style == "high":
+                size, color = 10, "0.92 0.35 0.05"
+            elif style == "medium":
+                size, color = 10, "0.70 0.38 0.02"
+            elif style == "low":
+                size, color = 10, "0.10 0.35 0.75"
+            elif style == "code":
+                size, color = 9, "0.10 0.10 0.10"
+            elif style == "fix":
+                size, color = 9, "0.05 0.40 0.20"
+            else:
+                size, color = 9, "0.15 0.18 0.22"
+            stream_lines.extend(["BT", f"/F1 {size} Tf", f"{color} rg", f"42 {y} Td", f"({_pdf_escape(item['text'])}) Tj", "ET"])
+            y -= 14 if size <= 10 else 20
         stream_lines.append("ET")
         stream = "\n".join(stream_lines).encode('ascii')
         annots = f" /Annots [{' '.join(f'{annotation_id} 0 R' for annotation_id in annotation_ids)}]" if annotation_ids else ""
