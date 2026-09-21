@@ -1,43 +1,48 @@
 ---
-name: agentic-iac-scanner
-description: Autonomous security scanner for Infrastructure as Code (Terraform, CloudFormation, ARM, Bicep) mapped against OWASP, CIS, and Cloud Well-Architected Frameworks.
+name: agentic-iac-security-scanner
+description: Autonomous cross-platform security scanner for IaC (Terraform, CloudFormation, ARM, Bicep) mapped against OWASP, CIS Benchmarks, and Cloud Well-Architected Security Pillars.
 version: 1.0.0
 ---
 
 # Agentic IaC Security Scanner Skill
 
-## Goal
-Scans Infrastructure as Code (IaC) repositories using semantic AI analysis, checkpointing every 400 lines of code. It maps findings against OWASP IaC guidelines, CIS Benchmarks, and Cloud Well-Architected Security Pillars (AWS, Azure, GCP).
+## Purpose & Scope
+This skill performs semantic AI static analysis and architectural threat modeling on Infrastructure as Code (IaC) source files. It scans local directories or remote Git repositories, operates in 400-line checkpoints, and generates multi-format reports sorted by severity.
 
-## Workflow Instructions
+Target Repository: `https://github.com/eyalestrin/agentic-iac-security-scanner`
+Workspace Path: `.vscode/skills/agentic-iac-security-scanner`
 
-1. **Environment & Dependency Checks**
-   - Ensure Python 3.9+ is installed.
-   - Verify requirements: `pip install -r requirements.txt`.
+---
 
-2. **Reconnaissance & Format Identification**
-   - Inspect target directory.
-   - Categorize files by provider engine:
-     - **Terraform**: `*.tf`, `*.tfvars`
-     - **AWS CloudFormation**: `*.yaml`, `*.yml`, `*.json` (with `AWSTemplateFormatVersion`)
-     - **Azure ARM/Bicep**: `*.json` (with `$schema` containing `deploymentTemplate.json`), `*.bicep`
+## Operational Execution Protocol
 
-3. **Checkpoint & Chunking Engine**
-   - Partition identified IaC files into logical blocks of **maximum 400 lines of code**.
-   - Read `.iac_checkpoint.json` in the target directory. Skip any `file_path::chunk_index` marked as `COMPLETED`.
+### Step 1: Initialization & Environment Purge
+Before initiating scanning:
+1. Delete any existing local `.iac_checkpoint.json` in the project root.
+2. Purge existing report files in the target output directory (`./reports/`).
+3. If `--git <URL>` is provided, clone the remote repository into a temporary workspace directory before scanning.
 
-4. **Security Analysis Baseline**
-   For each chunk, evaluate against:
-   - **OWASP IaC Principles**: Least privilege, public exposure, hardcoded credentials, state file exposure.
-   - **CIS Benchmarks**: Encryption at rest/transit, audit logging, default configurations.
-   - **AWS Well-Architected (Security Pillar)**: KMS keys, S3 access logging, GuardDuty/CloudTrail coverage, IAM wildcards.
-   - **Azure Well-Architected (Security Pillar)**: NSG default rules, Key Vault purge protection, Managed Identity usage.
-   - **GCP Well-Architected (Security Pillar)**: Private Google Access, CMEK usage, Service Account key generation.
+### Step 2: Language Detection & Chunking
+1. Recursively discover files and auto-detect IaC languages:
+   * **Terraform**: `.tf`, `.tfvars`
+   * **AWS CloudFormation**: `.yaml`, `.json` containing `AWSTemplateFormatVersion` or AWS resource types
+   * **Azure ARM**: `.json` with `$schema` referencing `deploymentTemplate.json`
+   * **Azure Bicep**: `.bicep`
+2. Divide target files into **400-line chunks**. Record state in `.iac_checkpoint.json`.
 
-5. **Report Generation**
-   - Save state to `.iac_checkpoint.json` after processing each 400-line block.
-   - Compile all findings into `./reports/`:
-     - `summary.md` (Markdown summary)
-     - `findings.json` (Structured JSON)
-     - `results.sarif` (GitHub Security Integration)
-     - `iac_security_report.pdf` (**Mandatory PDF Report**)
+### Step 3: Security Evaluation Rules
+Evaluate each chunk against:
+* **OWASP IaC & DSVS**: Least privilege, public exposure, hardcoded credentials, unencrypted state.
+* **CIS Benchmarks**: Storage bucket encryption, audit logging, strict ingress rules.
+* **AWS Well-Architected (Security Pillar)**: KMS keys, S3 bucket keys, GuardDuty/CloudTrail targets, IAM wildcards.
+* **Azure Well-Architected (Security Pillar)**: Subnet NSG associations, Key Vault soft-delete/purge protection, Managed Identities.
+* **GCP Well-Architected (Security Pillar)**: Uniform bucket-level access, VPC Flow Logs, CMEK key usage.
+
+### Step 4: Report Generation & Cleanup
+1. Write findings to requested format (`html`, `md`, `json`, `sarif`).
+2. **Always generate `iac_security_report.pdf`** using `weasyprint`.
+3. Include metadata at the top of reports:
+   * LLM model used for the scan.
+   * List of detected IaC frameworks.
+4. Format findings sorted by severity (**Critical ➔ High ➔ Medium ➔ Low**) with isolated code snippets, fix replacement code, and reference links.
+5. **Cleanup**: Unless `--debug` is specified, delete `.iac_checkpoint.json` upon successful completion.
