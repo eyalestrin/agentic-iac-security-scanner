@@ -42,10 +42,11 @@ Evaluate each chunk against:
 ### Step 4: Report Generation & Cleanup
 1. Write findings only to the requested format (`html`, `md`, `json`, or `sarif`) in the current folder.
 2. **Always generate `iac-security-scanner.pdf`** using the Python standard library; no WeasyPrint or GTK installation is required.
-3. Include metadata at the top of reports:
-   * LLM model used for the scan.
+4. Include metadata at the top of HTML and PDF reports:
+   * LLM module used for the scan (`No LLM model used; deterministic IaC heuristic rules` for the built-in scanner).
    * List of detected IaC frameworks.
-4. Format findings sorted by severity (**Critical ➔ High ➔ Medium ➔ Low**) with isolated code snippets, fix replacement code, and reference links.
+5. Include an executive-summary table of total findings by severity in order **Critical, High, Medium, Low**.
+6. Format detailed findings in the same severity order with the IaC language, vulnerability title, full file path, line number, description, exact vulnerable snippet, copy-paste replacement code, and public references from OWASP, CIS, and relevant cloud Well-Architected security guidance.
 5. **Cleanup**: Unless `--debug` is specified, delete `.iac_checkpoint.json` upon successful completion. Debug mode is optional; do not ask the user to provide it.
 
 ### Default Locations

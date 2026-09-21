@@ -180,16 +180,17 @@ The scanner does not create a separate output directory and does not write
 `findings.json` unless `--debug` is supplied.
 
 1. **Header Metadata**:
-   * **LLM Engine Used**: Displays the exact LLM model used during analysis (e.g., `Claude 3.5 Sonnet`, `GPT-4o`).
+  * **LLM Module Used**: Displays the scanner module used during analysis. The built-in scanner reports `No LLM model used; deterministic IaC heuristic rules`.
    * **Detected IaC Languages**: Lists all auto-detected frameworks (e.g., `Terraform`, `AWS CloudFormation`, `Azure ARM`, `Azure Bicep`).
 
 2. **Executive Summary**:
-   * High-level summary table of security findings grouped and sorted strictly by severity in descending order (**Critical ➔ High ➔ Medium ➔ Low**).
+  * High-level table of total findings sorted strictly by severity (**Critical ➔ High ➔ Medium ➔ Low**).
 
 3. **Detailed Findings Section** (Sorted Critical ➔ Low):
    * **Title & Severity Badge**
-   * **Finding Description**: Detailed explanation of the vulnerability and security implications.
-   * **Exact Location**: Full path to the file and exact line numbers (e.g., `/modules/storage/s3.tf: Lines 14-22`).
-   * **Vulnerable Code Snippet**: Isolated relevant lines of code containing the defect (excluding non-relevant code blocks).
-   * **Remediation / Recommendation to Fix**: Copy-paste ready replacement code block enabling direct remediation.
-   * **Reference Reading**: Direct links to public documentation (OWASP, CIS Benchmarks, AWS/Azure/GCP Well-Architected Security Pillars).
+  * **IaC Language and Title**: The detected framework and vulnerability title.
+  * **Finding Description**: Detailed explanation of the vulnerability and security implications.
+  * **Exact Location**: Full path to the file and exact line number.
+  * **Vulnerable Code Snippet**: Isolated relevant line containing the defect.
+  * **Remediation / Recommendation to Fix**: Copy-paste-ready replacement code.
+  * **Reference Reading**: Public OWASP, CIS Benchmark, and relevant cloud Well-Architected Security Pillar links.

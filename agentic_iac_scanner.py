@@ -19,6 +19,7 @@ CHUNK_SIZE_LINES = 400
 REPORT_BASENAME = "iac-security-scanner"
 SUPPORTED_FORMATS = {"html", "md", "json", "sarif"}
 SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+SCANNER_MODEL = "No LLM model used; deterministic IaC heuristic rules"
 REPORT_FILES = {f"{REPORT_BASENAME}.{suffix}" for suffix in (*SUPPORTED_FORMATS, "pdf")}
 
 IAC_RULES = [
@@ -27,35 +28,50 @@ IAC_RULES = [
         "severity": "CRITICAL",
         "pattern": r"0\.0\.0\.0/0|::/0",
         "standard": "CIS / Least Privilege",
+        "description": "An ingress rule allows traffic from every IPv4 or IPv6 source, exposing the resource to the public internet.",
         "remediation": "Restrict the source range to approved CIDRs instead of the entire internet.",
+        "fix_template": "cidr_blocks = [\"10.0.0.0/16\"]",
+        "references": ["https://www.cisecurity.org/benchmark/amazon_web_services", "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec-secure-network.html"],
     },
     {
         "title": "Wildcard IAM Permission",
         "severity": "HIGH",
         "pattern": r'"Action"\s*:\s*"\*"|actions\s*=\s*\[?\s*"\*"',
         "standard": "CIS / Least Privilege",
+        "description": "An IAM policy grants every available action instead of only the actions required by the workload.",
         "remediation": "Replace wildcard actions with the smallest set of required actions.",
+        "fix_template": "actions = [\"service:RequiredAction\"]",
+        "references": ["https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html", "https://owasp.org/www-project-application-security-verification-standard/"],
     },
     {
         "title": "Public Cloud Storage Access",
         "severity": "HIGH",
         "pattern": r"public-read|public-read-write|allUsers|\*\s*=\s*\[?\s*\"storage\.objects",
         "standard": "CIS / Data Protection",
+        "description": "The storage resource is configured for public access, allowing unauthenticated users to read or write data.",
         "remediation": "Remove public access and grant access only to authenticated principals.",
+        "fix_template": "public_access = false",
+        "references": ["https://www.cisecurity.org/benchmark/amazon_web_services", "https://learn.microsoft.com/azure/security/fundamentals/data-encryption-best-practices"],
     },
     {
         "title": "Storage Encryption Not Configured",
         "severity": "MEDIUM",
         "pattern": r"encrypt(?:ion)?\s*=\s*(?:false|disabled)|encrypted\s*:\s*false",
         "standard": "CIS / Data Protection",
+        "description": "The configuration explicitly disables encryption at rest for a storage or data resource.",
         "remediation": "Enable encryption at rest using the cloud provider's managed or customer-managed key.",
+        "fix_template": "encryption = true",
+        "references": ["https://www.cisecurity.org/benchmark/amazon_web_services", "https://cloud.google.com/security/encryption-at-rest"],
     },
     {
         "title": "Publicly Exposed Resource",
         "severity": "HIGH",
         "pattern": r"public_network_access\s*=\s*['\"]?Enabled|publicNetworkAccess\s*:\s*['\"]?Enabled",
         "standard": "Cloud Well-Architected Security Pillar",
+        "description": "The resource is configured to accept public network access instead of using private connectivity controls.",
         "remediation": "Disable public network access and use private endpoints or approved network controls.",
+        "fix_template": "public_network_access = \"Disabled\"",
+        "references": ["https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec-infrastructure-protection.html", "https://learn.microsoft.com/azure/well-architected/security/secure-networking"],
     },
 ]
 
@@ -141,7 +157,10 @@ def analyze_chunk(chunk: Dict[str, Any], iac_type: str) -> List[Dict[str, Any]]:
                     "line": chunk["start_line"] + offset,
                     "vulnerable_code": line.strip(),
                     "standard": rule["standard"],
+                    "description": rule["description"],
                     "remediation": rule["remediation"],
+                    "fix_template": rule["fix_template"],
+                    "references": rule["references"],
                 })
     return findings
 
@@ -153,19 +172,28 @@ def _pdf_escape(value: str) -> str:
 
 
 def _pdf_lines(findings: List[Dict[str, Any]]) -> List[str]:
+    frameworks = sorted({item["iac_type"] for item in findings})
+    severity_counts = {severity: sum(item["severity"] == severity for item in findings) for severity in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
     lines = [
         "Agentic IaC Security Scan Report",
+        f"LLM Module: {SCANNER_MODEL}",
+        f"Detected IaC Languages: {', '.join(frameworks) or 'None'}",
         f"Total Findings: {len(findings)}",
+        "Executive Summary - Findings by Severity",
+        *(f"{severity}: {severity_counts[severity]}" for severity in severity_counts),
+        "Detailed Findings (sorted Critical to Low)",
         "",
     ]
     for index, finding in enumerate(findings, 1):
         lines.extend([
             f"{index}. {finding['severity']} - {finding['title']}",
-            f"Framework: {finding['iac_type']}",
-            f"Location: {finding['file']}:{finding['line']}",
+            f"IaC Language: {finding['iac_type']}",
+            f"Full Path: {finding['file']}:{finding['line']}",
+            f"Description: {finding['description']}",
             f"Standard: {finding['standard']}",
-            f"Code: {finding['vulnerable_code']}",
-            f"Fix: {finding['remediation']}",
+            f"Vulnerable Code: {finding['vulnerable_code']}",
+            f"Copy/Paste Fix: {finding['fix_template']}",
+            f"References: {'; '.join(finding['references'])}",
             "",
         ])
     wrapped = []
@@ -240,11 +268,18 @@ def generate_reports(findings: List[Dict[str, Any]], output_dir: Path, report_fo
     if debug:
         (output_dir / "findings.json").write_text(json.dumps(ordered, indent=2), encoding='utf-8')
 
+    frameworks = sorted({item["iac_type"] for item in ordered})
+    severity_counts = {severity: sum(item["severity"] == severity for item in ordered) for severity in ("CRITICAL", "HIGH", "MEDIUM", "LOW")}
     md_content = "# Agentic IaC Security Scan Summary\n\n"
+    md_content += f"**LLM Module:** {SCANNER_MODEL}\n\n"
+    md_content += f"**Detected IaC Languages:** {', '.join(frameworks) or 'None'}\n\n"
     md_content += f"**Total Findings:** {len(ordered)}\n\n"
-    md_content += "| Severity | Finding | Framework | File | Line |\n|---|---|---|---|---|\n"
+    md_content += "| Severity | Identified Findings |\n|---|---:|\n"
+    md_content += ''.join(f"| {severity} | {severity_counts[severity]} |\n" for severity in severity_counts)
+    md_content += "\n| Severity | Finding | Framework | Full File Path | Line |\n|---|---|---|---|---:|\n"
     for f in ordered:
-        md_content += f"| {f.get('severity')} | {f.get('title')} | {f.get('framework')} | `{f.get('file')}` | {f.get('line')} |\n"
+        md_content += f"| {f.get('severity')} | {f.get('title')} | {f.get('iac_type')} | `{f.get('file')}` | {f.get('line')} |\n"
+        md_content += f"\n**Description:** {f.get('description')}\n\n**Vulnerable Code:**\n```text\n{f.get('vulnerable_code')}\n```\n\n**Copy/Paste Fix:**\n```text\n{f.get('fix_template')}\n```\n\n**References:** {'; '.join(f.get('references', []))}\n\n"
     html_content = f"""<!DOCTYPE html>
     <!DOCTYPE html>
     <html>
@@ -263,18 +298,21 @@ def generate_reports(findings: List[Dict[str, Any]], output_dir: Path, report_fo
     </head>
     <body>
         <h1>Agentic IaC Security Scan Report</h1>
-        <p>Generated automatically by Agentic IaC Scanner Skill</p>
+        <p><b>LLM Module:</b> {escape(SCANNER_MODEL)}</p>
+        <p><b>Detected IaC Languages:</b> {escape(', '.join(frameworks) or 'None')}</p>
         <hr>
+        <h2>Executive Summary</h2>
+        <table><tr><th>Severity</th><th>Identified Findings</th></tr>{''.join(f'<tr><td class="{severity}">{severity}</td><td>{severity_counts[severity]}</td></tr>' for severity in severity_counts)}</table>
         <h3>Detailed Findings ({len(ordered)})</h3>
         <table>
             <tr>
                 <th>Severity</th>
                 <th>Rule / Title</th>
                 <th>Target Framework</th>
-                <th>File & Range</th>
-                <th>Standard Mapping</th>
+                <th>Full File Path & Line</th>
+                <th>Description / Code / Fix / References</th>
             </tr>
-            {"".join([f"<tr><td class='{item['severity']}'>{escape(item['severity'])}</td><td>{escape(item['title'])}<br><small>{escape(item['remediation'])}</small></td><td>{escape(item['iac_type'])}</td><td><code>{escape(item['file'])}:{item['line']}</code><br><pre>{escape(item['vulnerable_code'])}</pre></td><td>{escape(item['standard'])}</td></tr>" for item in ordered])}
+            {"".join([f"<tr><td class='{item['severity']}'>{escape(item['severity'])}</td><td><b>{escape(item['title'])}</b><br>{escape(item['standard'])}</td><td>{escape(item['iac_type'])}</td><td><code>{escape(item['file'])}:{item['line']}</code></td><td><b>Description:</b> {escape(item['description'])}<br><b>Vulnerable Code:</b><pre>{escape(item['vulnerable_code'])}</pre><b>Copy/Paste Fix:</b><pre>{escape(item['fix_template'])}</pre><b>References:</b> {escape('; '.join(item['references']))}</td></tr>" for item in ordered])}
         </table>
     </body>
     </html>
