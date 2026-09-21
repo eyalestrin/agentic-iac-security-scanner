@@ -273,16 +273,30 @@ def _pdf_content(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _pdf_wrap_rows(content: List[Dict[str, Any]], width: int = 78) -> List[Dict[str, Any]]:
+    def split_line(text: str) -> tuple[str, str]:
+        if len(text) <= width:
+            return text, ""
+        boundary = max(
+            text.rfind(" ", 0, width + 1),
+            text.rfind("/", 0, width + 1),
+            text.rfind("-", 0, width + 1),
+            text.rfind(".", 0, width + 1),
+        )
+        if boundary <= 0:
+            boundary = width
+        else:
+            boundary += 1
+        return text[:boundary].rstrip(), text[boundary:].lstrip()
+
     rows = []
     for item in content:
         text = item["text"]
         if not text:
             rows.append(item)
             continue
-        while len(text) > width:
-            rows.append({"text": text[:width], "style": item["style"]})
-            text = text[width:]
-        rows.append({"text": text, "style": item["style"]})
+        while text:
+            line, text = split_line(text)
+            rows.append({"text": line, "style": item["style"]})
     return rows
 
 
@@ -331,6 +345,14 @@ def generate_pdf_report(findings: List[Dict[str, Any]], output_path: Path) -> No
                 size, color = 9, "0.05 0.40 0.20"
             else:
                 size, color = 9, "0.15 0.18 0.22"
+            if style == "table_header":
+                stream_lines.append(f"q 0.90 0.94 0.98 rg 38 {y - 4} 536 16 re f Q")
+            elif style in {"critical", "high", "medium", "low"}:
+                stream_lines.append(f"q 0.96 0.97 0.99 rg 38 {y - 4} 536 16 re f Q")
+            elif style == "code":
+                stream_lines.append(f"q 0.94 0.95 0.97 rg 48 {y - 4} 520 16 re f Q")
+            elif style == "fix":
+                stream_lines.append(f"q 0.90 0.96 0.92 rg 48 {y - 4} 520 16 re f Q")
             stream_lines.extend(["BT", f"/F1 {size} Tf", f"{color} rg", f"42 {y} Td", f"({_pdf_escape(item['text'])}) Tj", "ET"])
             y -= 14 if size <= 10 else 20
         stream_lines.append("ET")
