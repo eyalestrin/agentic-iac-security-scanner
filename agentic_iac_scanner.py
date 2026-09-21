@@ -115,7 +115,7 @@ def chunk_file(file_path: Path, max_lines: int = CHUNK_SIZE_LINES) -> List[Dict[
     
     for i in range(0, total_lines, max_lines):
         chunk_lines = lines[i:i + max_lines]
-        chunk_id = f"{file_path.name}::chunk_{i // max_lines + 1}"
+        chunk_id = f"{file_path.resolve()}::chunk_{i // max_lines + 1}"
         chunks.append({
             "chunk_id": chunk_id,
             "start_line": i + 1,
@@ -224,6 +224,14 @@ def cleanup_previous_reports() -> None:
             print(f"[+] Removed previous report: {report_path}")
 
 
+def cleanup_checkpoint(target_dir: Path) -> None:
+    """Starts each scan without stale checkpoint state."""
+    checkpoint_path = target_dir / CHECKPOINT_FILE
+    if checkpoint_path.exists():
+        checkpoint_path.unlink()
+        print(f"[+] Removed previous checkpoint: {checkpoint_path}")
+
+
 def generate_reports(findings: List[Dict[str, Any]], output_dir: Path, report_format: str, debug: bool):
     """Generates only the requested report plus the mandatory PDF."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -295,6 +303,7 @@ def main():
 
     cleanup_previous_reports()
     target_dir = Path(args.directory)
+    cleanup_checkpoint(target_dir)
     output_dir = Path.cwd()
     
     checkpoint_mgr = CheckpointManager(target_dir)

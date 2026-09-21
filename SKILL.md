@@ -53,6 +53,7 @@ Evaluate each chunk against:
 - If no `--directory`/`-d` is provided, scan the current directory (`.`).
 - If no `--output`/`-o` is provided, write all reports to the current directory (`.`).
 - The user may add `--debug` to retain `.iac_checkpoint.json`; otherwise it is removed after a successful scan.
+- A previous checkpoint is removed at the start of every scan, preventing same-named files in different folders from being treated as the same chunk.
 - Reports use the basename `iac-security-scanner`; `findings.json` is written only when `--debug` is enabled.
 
 ### Python Environment

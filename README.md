@@ -44,7 +44,20 @@ PDF generation is built in; no WeasyPrint, GTK, or native C libraries are
 required.
 
 #### 1. Windows Setup
-1. Download and install Python 3.9+ from [python.org](https://www.python.org/) (ensure "Add Python to PATH" is checked).
+1. Install Python 3.9+ from [python.org](https://www.python.org/). Enable
+  **Add Python to PATH** during installation.
+2. Open PowerShell and verify Python:
+  ```powershell
+  python --version
+  ```
+3. Clone or copy the skill into the final VS Code skill directory:
+  ```powershell
+  $skillPath = Join-Path $HOME ".vscode\skills\agentic-iac-security-scanner"
+  New-Item -ItemType Directory -Force -Path (Split-Path $skillPath) | Out-Null
+  git clone https://github.com/eyalestrin/agentic-iac-security-scanner.git $skillPath
+  ```
+4. Run the scanner from the project directory. No virtual environment,
+  GTK installation, or additional Python package is required.
 
 #### 2. Linux Setup (Ubuntu / Debian)
 ```bash
@@ -78,12 +91,8 @@ python agentic_iac_scanner.py [OPTIONS]
 
 Options:
   -d, --directory PATH    Path to local project directory to scan (default: current directory)
-  -g, --git URL           Remote Git repository URL to clone and scan
-  -f, --format FORMAT     Output format: html, md, json, sarif (Default: html; PDF always created)
-  -o, --output PATH       No longer used; reports always go to the current directory
   -f, --format FORMAT     Requested format: html, md, json, or sarif (default: html)
   --debug                 Optional: keep .iac_checkpoint.json after scan completion
-  --llm-model NAME        Name of LLM model used for scan metadata annotation (e.g., Claude 3.5 Sonnet, GPT-4o)
 ```
 
 ---
@@ -124,17 +133,48 @@ Options:
 
 ## 📊 Report Structure & Output Specifications
 
-At the beginning of every scan, the skill purges all previous `iac-security-scanner.*` report files and checkpoint files. Reports are written to the current folder; `findings.json` is retained only with `--debug`.
+At the beginning of every scan, the skill purges previous reports and
+checkpoint files. Reports are written to the current folder; `findings.json`
+is retained only with `--debug`.
 
-The generated artifact names are:
+### Output Formats
 
-```text
-iac-security-scanner.html   # when -f html is selected
-iac-security-scanner.md     # when -f md is selected
-iac-security-scanner.json   # when -f json is selected
-iac-security-scanner.sarif  # when -f sarif is selected
-iac-security-scanner.pdf    # always generated
-```
+Choose one requested format with `-f`. The scanner creates that format in the
+current folder and creates `iac-security-scanner.pdf` as the executive summary.
+It does not create the other requested formats. `findings.json` is an optional
+debug artifact only.
+
+#### HTML (`-f html`)
+
+Creates `iac-security-scanner.html`, a browser-readable report. It is useful
+for reviewing findings interactively because severity labels, file locations,
+focused code snippets, and remediation text are displayed with wrapped text.
+
+#### Markdown (`-f md`)
+
+Creates `iac-security-scanner.md`, a plain-text report suitable for GitHub,
+pull requests, documentation, terminals, and version control. It contains the
+executive summary followed by severity-sorted findings and remediation details.
+
+#### JSON (`-f json`)
+
+Creates `iac-security-scanner.json`, a machine-readable report for scripts,
+custom dashboards, automation, and downstream processing. It preserves the
+structured finding fields such as severity, IaC framework, file path, line
+range, vulnerable code, remediation, and standard mapping.
+
+#### SARIF (`-f sarif`)
+
+Creates `iac-security-scanner.sarif` using the SARIF 2.1.0 structure. SARIF is
+intended for CI/CD tools, code-scanning platforms, and security dashboards
+that can import standardized static-analysis results.
+
+#### PDF executive summary
+
+Creates `iac-security-scanner.pdf` as the executive summary for sharing,
+archiving, and reviewing outside the development environment. PDF generation
+uses only the Python standard library; no GTK, WeasyPrint, or extra package is
+needed.
 
 The scanner does not create a separate output directory and does not write
 `findings.json` unless `--debug` is supplied.
