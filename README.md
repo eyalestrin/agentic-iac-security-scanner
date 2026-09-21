@@ -39,11 +39,12 @@ git clone https://github.com/eyalestrin/agentic-iac-security-scanner.git \
 
 ### Operating System Prerequisites
 
-The engine requires Python 3.9+ and native C libraries for PDF report generation (`weasyprint`).
+The engine requires Python 3.9+. Native C libraries are needed only for
+WeasyPrint PDF report generation; the IaC scan itself does not use GTK.
 
 #### 1. Windows Setup
 1. Download and install Python 3.9+ from [python.org](https://www.python.org/) (ensure "Add Python to PATH" is checked).
-2. Install GTK+ binaries required by WeasyPrint:
+2. Install GTK+ binaries required by WeasyPrint's native PDF rendering stack:
    * **Option A (via Chocolatey):**
      ```cmd
      choco install gtk-runtime
@@ -64,21 +65,6 @@ sudo apt install -y python3 python3-pip build-essential python3-dev \
     python3-venv python3-setuptools python3-wheel python3-cffi \
     libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info
 
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r ~/agentic-iac-security-scanner/requirements.txt
-```
-
-For the `~/terrabuck` project, run:
-
-```bash
-cd ~/terrabuck
-sudo apt update
-sudo apt install -y python3-venv python3-dev python3-cffi \
-  python3.12-venv \
-  libcairo2 libpango-1.0-0 libpangocairo-1.0-0 \
-  libgdk-pixbuf2.0-0 libffi-dev shared-mime-info
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
