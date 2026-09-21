@@ -10,7 +10,8 @@ version: 1.0.0
 This skill performs semantic AI static analysis and architectural threat modeling on Infrastructure as Code (IaC) source files. It scans local directories or remote Git repositories, operates in 400-line checkpoints, and generates multi-format reports sorted by severity.
 
 Target Repository: `https://github.com/eyalestrin/agentic-iac-security-scanner`
-Workspace Path: `.vscode/skills/agentic-iac-security-scanner`
+Current Development Path: `~/agentic-iac-security-scanner`
+Final Deployment Path: `~/.vscode/skills/agentic-iac-security-scanner`
 
 ---
 
@@ -45,4 +46,19 @@ Evaluate each chunk against:
    * LLM model used for the scan.
    * List of detected IaC frameworks.
 4. Format findings sorted by severity (**Critical ➔ High ➔ Medium ➔ Low**) with isolated code snippets, fix replacement code, and reference links.
-5. **Cleanup**: Unless `--debug` is specified, delete `.iac_checkpoint.json` upon successful completion.
+5. **Cleanup**: Unless `--debug` is specified, delete `.iac_checkpoint.json` upon successful completion. Debug mode is optional; do not ask the user to provide it.
+
+### Default Locations
+
+- If no `--directory`/`-d` is provided, scan the current directory (`.`).
+- If no `--output`/`-o` is provided, write all reports to the current directory (`.`).
+- The user may add `--debug` to retain `.iac_checkpoint.json`; otherwise it is removed after a successful scan.
+
+### Python Environment
+
+On Debian/Ubuntu, install `python3-venv` (and the versioned package such as
+`python3.12-venv` when required) before creating a project virtual environment.
+Install Python packages inside that virtual environment.
+Do not install them into the system interpreter with `pip3 install`; PEP 668
+blocks that operation. Use `python3 -m venv .venv`, activate it, and run the
+scanner with the environment's Python interpreter.

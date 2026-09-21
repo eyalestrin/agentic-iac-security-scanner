@@ -10,7 +10,8 @@ This skill automatically detects IaC formats (Terraform modules, AWS CloudFormat
 
 ## 🚀 Key Features
 
-* **VS Code Skill Integration**: Installs and executes directly within your local workspace under `.vscode/skills/agentic-iac-security-scanner`.
+* **Current development path**: `~/agentic-iac-security-scanner`.
+* **Final VS Code deployment path**: `~/.vscode/skills/agentic-iac-security-scanner`.
 * **Multi-Format Auto-Detection**: Automatically identifies and parses Terraform (`.tf`, `.tfvars`), AWS CloudFormation (`.json`, `.yaml`), Azure ARM templates (`.json`), and Azure Bicep (`.bicep`).
 * **Local & Remote Git Scanning**: Scans existing local directories/subfolders or automatically clones and audits remote Git repositories via the `--git` flag.
 * **Pre-Scan Cleanup & State Management**: Automatically purges stale checkpoint files and previous scan reports at the start of every run.
@@ -24,12 +25,14 @@ This skill automatically detects IaC formats (Terraform modules, AWS CloudFormat
 ## 💻 Installation & Prerequisites
 
 ### Installation Directory
-Clone or place this skill inside your VS Code workspace skills folder:
+During development, keep the checkout at `~/agentic-iac-security-scanner`.
+For final VS Code deployment, place it at
+`~/.vscode/skills/agentic-iac-security-scanner`:
 
 ```bash
-mkdir -p .vscode/skills
-cd .vscode/skills
-git clone https://github.com/eyalestrin/agentic-iac-security-scanner.git
+mkdir -p ~/.vscode/skills
+git clone https://github.com/eyalestrin/agentic-iac-security-scanner.git \
+  ~/.vscode/skills/agentic-iac-security-scanner
 ```
 
 ---
@@ -51,24 +54,47 @@ The engine requires Python 3.9+ and native C libraries for PDF report generation
      ```
 3. Install required Python packages:
    ```cmd
-   pip install -r .vscode\skills\agentic-iac-security-scanner\requirements.txt
+  pip install -r $HOME\agentic-iac-security-scanner\requirements.txt
    ```
 
 #### 2. Linux Setup (Ubuntu / Debian)
 ```bash
 sudo apt update
 sudo apt install -y python3 python3-pip build-essential python3-dev \
-    python3-setuptools python3-wheel python3-cffi \
+    python3-venv python3-setuptools python3-wheel python3-cffi \
     libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info
 
-pip3 install -r .vscode/skills/agentic-iac-security-scanner/requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r ~/agentic-iac-security-scanner/requirements.txt
 ```
+
+For the `~/terrabuck` project, run:
+
+```bash
+cd ~/terrabuck
+sudo apt update
+sudo apt install -y python3-venv python3-dev python3-cffi \
+  python3.12-venv \
+  libcairo2 libpango-1.0-0 libpangocairo-1.0-0 \
+  libgdk-pixbuf2.0-0 libffi-dev shared-mime-info
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r ~/agentic-iac-security-scanner/requirements.txt
+```
+
+Do not run `pip3 install` against Ubuntu's system Python. It is protected by
+PEP 668 and produces an `externally-managed-environment` error. Activate the
+virtual environment before running the scanner; deactivate it with
+`deactivate` when finished.
 
 #### 3. Linux Setup (RHEL / Fedora / CentOS)
 ```bash
 sudo dnf install -y python3 python3-pip gcc cairo pango gdk-pixbuf2 libffi-devel
 
-pip3 install -r .vscode/skills/agentic-iac-security-scanner/requirements.txt
+pip3 install -r ~/agentic-iac-security-scanner/requirements.txt
 ```
 
 #### 4. macOS Setup
@@ -76,7 +102,7 @@ pip3 install -r .vscode/skills/agentic-iac-security-scanner/requirements.txt
 # Install Homebrew dependencies
 brew install python cairo pango gdk-pixbuf libffi
 
-pip3 install -r .vscode/skills/agentic-iac-security-scanner/requirements.txt
+pip3 install -r ~/agentic-iac-security-scanner/requirements.txt
 ```
 
 ---
@@ -89,11 +115,11 @@ pip3 install -r .vscode/skills/agentic-iac-security-scanner/requirements.txt
 python agentic_iac_scanner.py [OPTIONS]
 
 Options:
-  -d, --directory PATH    Path to local project directory to scan (scans directory and all sub-folders)
+  -d, --directory PATH    Path to local project directory to scan (default: current directory)
   -g, --git URL           Remote Git repository URL to clone and scan
   -f, --format FORMAT     Output format: html, md, json, sarif (Default: html; PDF always created)
-  -o, --output PATH       Output directory for generated reports (Default: ./reports)
-  --debug                 Enable debug mode to keep .iac_checkpoint.json after scan completion
+  -o, --output PATH       Output directory for generated reports (default: current directory)
+  --debug                 Optional: keep .iac_checkpoint.json after scan completion
   --llm-model NAME        Name of LLM model used for scan metadata annotation (e.g., Claude 3.5 Sonnet, GPT-4o)
 ```
 
@@ -104,7 +130,7 @@ Options:
 #### Windows (Command Prompt / PowerShell)
 * **Scan Existing Local Project (and all sub-folders):**
   ```cmd
-  python .vscode\skills\agentic-iac-security-scanner\agentic_iac_scanner.py -d C:\Projects\MyCloudInfra -f html -o .\reports --debug
+  python .vscode\skills\agentic-iac-security-scanner\agentic_iac_scanner.py
   ```
 * **Scan Remote Git Repository:**
   ```cmd
@@ -114,21 +140,21 @@ Options:
 #### Linux (Ubuntu / RHEL)
 * **Scan Existing Local Project (and all sub-folders):**
   ```bash
-  python3 .vscode/skills/agentic-iac-security-scanner/agentic_iac_scanner.py -d /home/user/projects/cloud-infra -f html -o ./reports --debug
+  python3 ~/agentic-iac-security-scanner/agentic_iac_scanner.py
   ```
 * **Scan Remote Git Repository:**
   ```bash
-  python3 .vscode/skills/agentic-iac-security-scanner/agentic_iac_scanner.py -g https://github.com/eyalestrin/agentic-iac-security-scanner.git -f html -o ./reports
+  python3 ~/agentic-iac-security-scanner/agentic_iac_scanner.py -g https://github.com/eyalestrin/agentic-iac-security-scanner.git -f html -o ./reports
   ```
 
 #### macOS
 * **Scan Existing Local Project (and all sub-folders):**
   ```bash
-  python3 .vscode/skills/agentic-iac-security-scanner/agentic_iac_scanner.py -d ~/Developer/aws-cloudformation-templates -f html -o ./reports --debug
+  python3 ~/agentic-iac-security-scanner/agentic_iac_scanner.py
   ```
 * **Scan Remote Git Repository:**
   ```bash
-  python3 .vscode/skills/agentic-iac-security-scanner/agentic_iac_scanner.py -g https://github.com/eyalestrin/agentic-iac-security-scanner.git -f html -o ./reports
+  python3 ~/agentic-iac-security-scanner/agentic_iac_scanner.py -g https://github.com/eyalestrin/agentic-iac-security-scanner.git -f html -o ./reports
   ```
 
 ---

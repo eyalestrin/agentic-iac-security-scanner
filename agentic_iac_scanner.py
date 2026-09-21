@@ -156,8 +156,9 @@ def generate_reports(findings: List[Dict[str, Any]], output_dir: Path):
 
 def main():
     parser = argparse.ArgumentParser(description="Agentic IaC Security Scanner")
-    parser.add_argument("-d", "--directory", required=True, help="Target directory containing IaC files")
-    parser.add_argument("-o", "--output", default="./reports", help="Output directory for reports")
+    parser.add_argument("-d", "--directory", default=".", help="Target directory containing IaC files (default: current directory)")
+    parser.add_argument("-o", "--output", default=".", help="Output directory for reports (default: current directory)")
+    parser.add_argument("--debug", action="store_true", help="Keep .iac_checkpoint.json after a successful scan")
     args = parser.parse_args()
 
     target_dir = Path(args.directory)
@@ -191,7 +192,10 @@ def main():
 
     # Generate output artifacts
     generate_reports(findings, output_dir)
-    print(f"[✔] Scan complete. Reports saved to {output_dir}")
+    if not args.debug and checkpoint_mgr.checkpoint_path.exists():
+        checkpoint_mgr.checkpoint_path.unlink()
+        print(f"[+] Removed checkpoint: {checkpoint_mgr.checkpoint_path}")
+    print(f"[✔] Scan complete. Reports saved to {output_dir.resolve()}")
 
 if __name__ == "__main__":
     main()
