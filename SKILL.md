@@ -20,7 +20,7 @@ Final Deployment Path: `~/.vscode/skills/agentic-iac-security-scanner`
 ### Step 1: Initialization & Environment Purge
 Before initiating scanning:
 1. Delete any existing local `.iac_checkpoint.json` in the project root.
-2. Purge existing report files in the target output directory (`./reports/`).
+2. Purge existing `iac-security-scanner.*` report files in the current directory.
 3. If `--git <URL>` is provided, clone the remote repository into a temporary workspace directory before scanning.
 
 ### Step 2: Language Detection & Chunking
@@ -40,8 +40,8 @@ Evaluate each chunk against:
 * **GCP Well-Architected (Security Pillar)**: Uniform bucket-level access, VPC Flow Logs, CMEK key usage.
 
 ### Step 4: Report Generation & Cleanup
-1. Write findings to requested format (`html`, `md`, `json`, `sarif`).
-2. **Always generate `iac_security_report.pdf`** using `weasyprint`.
+1. Write findings only to the requested format (`html`, `md`, `json`, or `sarif`) in the current folder.
+2. **Always generate `iac-security-scanner.pdf`** using the Python standard library; no WeasyPrint or GTK installation is required.
 3. Include metadata at the top of reports:
    * LLM model used for the scan.
    * List of detected IaC frameworks.
@@ -53,6 +53,7 @@ Evaluate each chunk against:
 - If no `--directory`/`-d` is provided, scan the current directory (`.`).
 - If no `--output`/`-o` is provided, write all reports to the current directory (`.`).
 - The user may add `--debug` to retain `.iac_checkpoint.json`; otherwise it is removed after a successful scan.
+- Reports use the basename `iac-security-scanner`; `findings.json` is written only when `--debug` is enabled.
 
 ### Python Environment
 

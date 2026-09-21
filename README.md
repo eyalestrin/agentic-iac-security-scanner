@@ -39,48 +39,24 @@ git clone https://github.com/eyalestrin/agentic-iac-security-scanner.git \
 
 ### Operating System Prerequisites
 
-The engine requires Python 3.9+. Native C libraries are needed only for
-WeasyPrint PDF report generation; the IaC scan itself does not use GTK.
+The engine requires Python 3.9+ and uses only the Python standard library.
+PDF generation is built in; no WeasyPrint, GTK, or native C libraries are
+required.
 
 #### 1. Windows Setup
 1. Download and install Python 3.9+ from [python.org](https://www.python.org/) (ensure "Add Python to PATH" is checked).
-2. Install GTK+ binaries required by WeasyPrint's native PDF rendering stack:
-   * **Option A (via Chocolatey):**
-     ```cmd
-     choco install gtk-runtime
-     ```
-   * **Option B (via MSYS2):**
-     ```cmd
-     pacman -S mingw-w64-x86_64-gtk3
-     ```
-3. Install required Python packages:
-   ```cmd
-  pip install -r $HOME\agentic-iac-security-scanner\requirements.txt
-   ```
 
 #### 2. Linux Setup (Ubuntu / Debian)
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-pip build-essential python3-dev \
-    python3-venv python3-setuptools python3-wheel python3-cffi \
-    libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info
-
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r ~/agentic-iac-security-scanner/requirements.txt
+sudo apt install -y python3
 ```
 
-Do not run `pip3 install` against Ubuntu's system Python. It is protected by
-PEP 668 and produces an `externally-managed-environment` error. Activate the
-virtual environment before running the scanner; deactivate it with
-`deactivate` when finished.
+No Python package installation is required.
 
 #### 3. Linux Setup (RHEL / Fedora / CentOS)
 ```bash
-sudo dnf install -y python3 python3-pip gcc cairo pango gdk-pixbuf2 libffi-devel
-
-pip3 install -r ~/agentic-iac-security-scanner/requirements.txt
+sudo dnf install -y python3
 ```
 
 #### 4. macOS Setup
@@ -88,7 +64,7 @@ pip3 install -r ~/agentic-iac-security-scanner/requirements.txt
 # Install Homebrew dependencies
 brew install python cairo pango gdk-pixbuf libffi
 
-pip3 install -r ~/agentic-iac-security-scanner/requirements.txt
+python3 --version
 ```
 
 ---
@@ -104,7 +80,8 @@ Options:
   -d, --directory PATH    Path to local project directory to scan (default: current directory)
   -g, --git URL           Remote Git repository URL to clone and scan
   -f, --format FORMAT     Output format: html, md, json, sarif (Default: html; PDF always created)
-  -o, --output PATH       Output directory for generated reports (default: current directory)
+  -o, --output PATH       No longer used; reports always go to the current directory
+  -f, --format FORMAT     Requested format: html, md, json, or sarif (default: html)
   --debug                 Optional: keep .iac_checkpoint.json after scan completion
   --llm-model NAME        Name of LLM model used for scan metadata annotation (e.g., Claude 3.5 Sonnet, GPT-4o)
 ```
@@ -116,38 +93,51 @@ Options:
 #### Windows (Command Prompt / PowerShell)
 * **Scan Existing Local Project (and all sub-folders):**
   ```cmd
-  python .vscode\skills\agentic-iac-security-scanner\agentic_iac_scanner.py
+  python .vscode\skills\agentic-iac-security-scanner\agentic_iac_scanner.py -f html
   ```
 * **Scan Remote Git Repository:**
   ```cmd
-  python .vscode\skills\agentic-iac-security-scanner\agentic_iac_scanner.py -g https://github.com/eyalestrin/agentic-iac-security-scanner.git -f html -o .\reports
+  python .vscode\skills\agentic-iac-security-scanner\agentic_iac_scanner.py -g https://github.com/eyalestrin/agentic-iac-security-scanner.git -f html
   ```
 
 #### Linux (Ubuntu / RHEL)
 * **Scan Existing Local Project (and all sub-folders):**
   ```bash
-  python3 ~/agentic-iac-security-scanner/agentic_iac_scanner.py
+  python3 ~/agentic-iac-security-scanner/agentic_iac_scanner.py -f html
   ```
 * **Scan Remote Git Repository:**
   ```bash
-  python3 ~/agentic-iac-security-scanner/agentic_iac_scanner.py -g https://github.com/eyalestrin/agentic-iac-security-scanner.git -f html -o ./reports
+  python3 ~/agentic-iac-security-scanner/agentic_iac_scanner.py -g https://github.com/eyalestrin/agentic-iac-security-scanner.git -f html
   ```
 
 #### macOS
 * **Scan Existing Local Project (and all sub-folders):**
   ```bash
-  python3 ~/agentic-iac-security-scanner/agentic_iac_scanner.py
+  python3 ~/agentic-iac-security-scanner/agentic_iac_scanner.py -f html
   ```
 * **Scan Remote Git Repository:**
   ```bash
-  python3 ~/agentic-iac-security-scanner/agentic_iac_scanner.py -g https://github.com/eyalestrin/agentic-iac-security-scanner.git -f html -o ./reports
+  python3 ~/agentic-iac-security-scanner/agentic_iac_scanner.py -g https://github.com/eyalestrin/agentic-iac-security-scanner.git -f html
   ```
 
 ---
 
 ## 📊 Report Structure & Output Specifications
 
-At the beginning of every scan, the skill purges all previous report files and checkpoint files. The freshly generated reports strictly adhere to the following layout:
+At the beginning of every scan, the skill purges all previous `iac-security-scanner.*` report files and checkpoint files. Reports are written to the current folder; `findings.json` is retained only with `--debug`.
+
+The generated artifact names are:
+
+```text
+iac-security-scanner.html   # when -f html is selected
+iac-security-scanner.md     # when -f md is selected
+iac-security-scanner.json   # when -f json is selected
+iac-security-scanner.sarif  # when -f sarif is selected
+iac-security-scanner.pdf    # always generated
+```
+
+The scanner does not create a separate output directory and does not write
+`findings.json` unless `--debug` is supplied.
 
 1. **Header Metadata**:
    * **LLM Engine Used**: Displays the exact LLM model used during analysis (e.g., `Claude 3.5 Sonnet`, `GPT-4o`).
