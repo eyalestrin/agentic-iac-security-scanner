@@ -192,5 +192,10 @@ The scanner does not create a separate output directory and does not write
   * **Finding Description**: Detailed explanation of the vulnerability and security implications.
   * **Exact Location**: Full path to the file and exact line number.
   * **Vulnerable Code Snippet**: Isolated relevant line containing the defect.
-  * **Remediation / Recommendation to Fix**: Copy-paste-ready replacement code.
+  * **Recommended solution**: Copy-paste-ready replacement code.
   * **Reference Reading**: Public OWASP, CIS Benchmark, and relevant cloud Well-Architected Security Pillar links.
+
+All requested formats contain the same finding fields: LLM module, detected
+IaC language, severity, title, full file path and line, description, exact
+vulnerable code, recommended solution, and framework-targeted references.
+Reference URLs are clickable in HTML and PDF reports.

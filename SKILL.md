@@ -46,7 +46,8 @@ Evaluate each chunk against:
    * LLM module used for the scan (`No LLM model used; deterministic IaC heuristic rules` for the built-in scanner).
    * List of detected IaC frameworks.
 5. Include an executive-summary table of total findings by severity in order **Critical, High, Medium, Low**.
-6. Format detailed findings in the same severity order with the IaC language, vulnerability title, full file path, line number, description, exact vulnerable snippet, copy-paste replacement code, and public references from OWASP, CIS, and relevant cloud Well-Architected security guidance.
+6. Format detailed findings in the same severity order with the IaC language, vulnerability title, full file path, line number, description, exact vulnerable snippet, a `Recommended solution`, and public references from OWASP, CIS, and relevant cloud Well-Architected security guidance. HTML and PDF reference URLs must be clickable.
+7. JSON and SARIF must carry the same metadata and finding fields as HTML/PDF, including `recommended_solution` and framework-targeted `references`.
 5. **Cleanup**: Unless `--debug` is specified, delete `.iac_checkpoint.json` upon successful completion. Debug mode is optional; do not ask the user to provide it.
 
 ### Default Locations

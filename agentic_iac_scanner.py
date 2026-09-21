@@ -75,6 +75,25 @@ IAC_RULES = [
     },
 ]
 
+FRAMEWORK_REFERENCES = {
+    "Terraform": [
+        "https://www.cisecurity.org/benchmark/amazon_web_services",
+        "https://owasp.org/www-project-devsecops-guideline/",
+    ],
+    "AWS CloudFormation": [
+        "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html",
+        "https://www.cisecurity.org/benchmark/amazon_web_services",
+    ],
+    "Azure ARM Template": [
+        "https://learn.microsoft.com/azure/well-architected/security/",
+        "https://learn.microsoft.com/azure/security/fundamentals/best-practices-and-patterns",
+    ],
+    "Azure Bicep": [
+        "https://learn.microsoft.com/azure/well-architected/security/",
+        "https://learn.microsoft.com/azure/security/fundamentals/best-practices-and-patterns",
+    ],
+}
+
 
 class IaCDetector:
     """Detects IaC frameworks automatically based on file extensions and content analysis."""
@@ -159,10 +178,15 @@ def analyze_chunk(chunk: Dict[str, Any], iac_type: str) -> List[Dict[str, Any]]:
                     "standard": rule["standard"],
                     "description": rule["description"],
                     "remediation": rule["remediation"],
-                    "fix_template": rule["fix_template"],
-                    "references": rule["references"],
+                    "recommended_solution": rule["fix_template"],
+                    "references": framework_references(iac_type, rule["references"]),
                 })
     return findings
+
+
+def framework_references(iac_type: str, rule_references: List[str]) -> List[str]:
+    """Combines the rule guidance with references for the detected IaC framework."""
+    return list(dict.fromkeys(rule_references + FRAMEWORK_REFERENCES.get(iac_type, [])))
 
 
 def _pdf_escape(value: str) -> str:
@@ -192,7 +216,7 @@ def _pdf_lines(findings: List[Dict[str, Any]]) -> List[str]:
             f"Description: {finding['description']}",
             f"Standard: {finding['standard']}",
             f"Vulnerable Code: {finding['vulnerable_code']}",
-            f"Copy/Paste Fix: {finding['fix_template']}",
+            f"Recommended solution: {finding['recommended_solution']}",
             f"References: {'; '.join(finding['references'])}",
             "",
         ])
@@ -213,19 +237,31 @@ def generate_pdf_report(findings: List[Dict[str, Any]], output_path: Path) -> No
     objects.append("<< /Type /Catalog /Pages 2 0 R >>")
     page_ids = []
     next_id = 3
+    page_data = []
     for page_lines in pages:
         page_id = next_id
         content_id = next_id + 1
+        urls = []
+        for line_index, line in enumerate(page_lines):
+            urls.extend((line_index, match.group(0)) for match in re.finditer(r"https?://\S+", line))
+        annotation_ids = list(range(next_id + 2, next_id + 2 + len(urls)))
+        page_data.append((page_id, content_id, page_lines, urls, annotation_ids))
         page_ids.append(page_id)
-        next_id += 2
+        next_id += 2 + len(urls)
+    font_id = next_id
+    for page_id, content_id, page_lines, urls, annotation_ids in page_data:
         stream_lines = ["BT", "/F1 9 Tf", "42 750 Td", "12 TL"]
         for line in page_lines:
             stream_lines.append(f"({_pdf_escape(line)}) Tj T*" )
         stream_lines.append("ET")
         stream = "\n".join(stream_lines).encode('ascii')
-        objects.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 {3 + len(pages) * 2} 0 R >> >> /Contents {content_id} 0 R >>")
+        annots = f" /Annots [{' '.join(f'{annotation_id} 0 R' for annotation_id in annotation_ids)}]" if annotation_ids else ""
+        objects.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 {font_id} 0 R >> >> /Contents {content_id} 0 R{annots} >>")
         objects.append(f"<< /Length {len(stream)} >>\nstream\n{stream.decode('ascii')}\nendstream")
-    font_id = next_id + len(pages) * 2
+        for annotation_id, (line_index, url) in zip(annotation_ids, urls):
+            top = 762 - line_index * 12
+            bottom = top - 10
+            objects.append(f"<< /Type /Annot /Subtype /Link /Rect [42 {bottom} 570 {top}] /Border [0 0 0] /A << /S /URI /URI ({_pdf_escape(url)}) >> >>")
     objects.append(f"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
     pages_object = f"<< /Type /Pages /Kids [{ ' '.join(f'{page_id} 0 R' for page_id in page_ids) }] /Count {len(page_ids)} >>"
     objects.insert(1, pages_object)
@@ -264,6 +300,12 @@ def generate_reports(findings: List[Dict[str, Any]], output_dir: Path, report_fo
     """Generates only the requested report plus the mandatory PDF."""
     output_dir.mkdir(parents=True, exist_ok=True)
     ordered = sorted(findings, key=lambda item: (SEVERITY_ORDER.get(item['severity'], 99), item['file'], item['line']))
+    frameworks = sorted({item["iac_type"] for item in ordered})
+    report_metadata = {
+        "scanner_model": SCANNER_MODEL,
+        "detected_iac_languages": frameworks,
+        "report_basename": REPORT_BASENAME,
+    }
 
     if debug:
         (output_dir / "findings.json").write_text(json.dumps(ordered, indent=2), encoding='utf-8')
@@ -279,7 +321,7 @@ def generate_reports(findings: List[Dict[str, Any]], output_dir: Path, report_fo
     md_content += "\n| Severity | Finding | Framework | Full File Path | Line |\n|---|---|---|---|---:|\n"
     for f in ordered:
         md_content += f"| {f.get('severity')} | {f.get('title')} | {f.get('iac_type')} | `{f.get('file')}` | {f.get('line')} |\n"
-        md_content += f"\n**Description:** {f.get('description')}\n\n**Vulnerable Code:**\n```text\n{f.get('vulnerable_code')}\n```\n\n**Copy/Paste Fix:**\n```text\n{f.get('fix_template')}\n```\n\n**References:** {'; '.join(f.get('references', []))}\n\n"
+        md_content += f"\n**Description:** {f.get('description')}\n\n**Vulnerable Code:**\n```text\n{f.get('vulnerable_code')}\n```\n\n**Recommended solution:**\n```text\n{f.get('recommended_solution')}\n```\n\n**References:** {'; '.join(f.get('references', []))}\n\n"
     html_content = f"""<!DOCTYPE html>
     <!DOCTYPE html>
     <html>
@@ -312,7 +354,7 @@ def generate_reports(findings: List[Dict[str, Any]], output_dir: Path, report_fo
                 <th>Full File Path & Line</th>
                 <th>Description / Code / Fix / References</th>
             </tr>
-            {"".join([f"<tr><td class='{item['severity']}'>{escape(item['severity'])}</td><td><b>{escape(item['title'])}</b><br>{escape(item['standard'])}</td><td>{escape(item['iac_type'])}</td><td><code>{escape(item['file'])}:{item['line']}</code></td><td><b>Description:</b> {escape(item['description'])}<br><b>Vulnerable Code:</b><pre>{escape(item['vulnerable_code'])}</pre><b>Copy/Paste Fix:</b><pre>{escape(item['fix_template'])}</pre><b>References:</b> {escape('; '.join(item['references']))}</td></tr>" for item in ordered])}
+            {"".join([f"<tr><td class='{item['severity']}'>{escape(item['severity'])}</td><td><b>{escape(item['title'])}</b><br>{escape(item['standard'])}</td><td>{escape(item['iac_type'])}</td><td><code>{escape(item['file'])}:{item['line']}</code></td><td><b>Description:</b> {escape(item['description'])}<br><b>Vulnerable Code:</b><pre>{escape(item['vulnerable_code'])}</pre><b>Recommended solution:</b><pre>{escape(item['recommended_solution'])}</pre><b>References:</b> {''.join(f'<a href=\"{escape(url, quote=True)}\">{escape(url)}</a><br>' for url in item['references'])}</td></tr>" for item in ordered])}
         </table>
     </body>
     </html>
@@ -320,9 +362,9 @@ def generate_reports(findings: List[Dict[str, Any]], output_dir: Path, report_fo
     if report_format == "md":
         (output_dir / f"{REPORT_BASENAME}.md").write_text(md_content, encoding='utf-8')
     elif report_format == "json":
-        (output_dir / f"{REPORT_BASENAME}.json").write_text(json.dumps(ordered, indent=2), encoding='utf-8')
+        (output_dir / f"{REPORT_BASENAME}.json").write_text(json.dumps({"metadata": report_metadata, "findings": ordered}, indent=2), encoding='utf-8')
     elif report_format == "sarif":
-        sarif = {"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "Agentic IaC Scanner"}}, "results": ordered}]}
+        sarif = {"version": "2.1.0", "properties": report_metadata, "runs": [{"tool": {"driver": {"name": "Agentic IaC Scanner"}}, "properties": report_metadata, "results": ordered}]}
         (output_dir / f"{REPORT_BASENAME}.sarif").write_text(json.dumps(sarif, indent=2), encoding='utf-8')
     else:
         (output_dir / f"{REPORT_BASENAME}.html").write_text(html_content, encoding='utf-8')
