@@ -77,8 +77,19 @@ IAC_RULES = [
 
 FRAMEWORK_REFERENCES = {
     "Terraform": [
-        "https://www.cisecurity.org/benchmark/amazon_web_services",
         "https://owasp.org/www-project-devsecops-guideline/",
+    ],
+    "AWS Terraform": [
+        "https://www.cisecurity.org/benchmark/amazon_web_services",
+        "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html",
+    ],
+    "GCP Terraform": [
+        "https://cloud.google.com/security/best-practices",
+        "https://cloud.google.com/architecture/framework/security",
+    ],
+    "Azure Terraform": [
+        "https://learn.microsoft.com/azure/well-architected/security/",
+        "https://learn.microsoft.com/azure/security/fundamentals/best-practices-and-patterns",
     ],
     "AWS CloudFormation": [
         "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html",
@@ -165,28 +176,64 @@ def analyze_chunk(chunk: Dict[str, Any], iac_type: str) -> List[Dict[str, Any]]:
     """Finds focused IaC security patterns in one chunk."""
     findings = []
     lines = chunk["content"].splitlines()
+    framework = detect_framework(chunk, iac_type)
     for offset, line in enumerate(lines):
         for rule in IAC_RULES:
             if re.search(rule["pattern"], line, re.IGNORECASE):
                 findings.append({
                     "title": rule["title"],
                     "severity": rule["severity"],
-                    "iac_type": iac_type,
+                    "iac_type": framework,
                     "file": str(Path(chunk["file_path"]).resolve()),
                     "line": chunk["start_line"] + offset,
                     "vulnerable_code": line.strip(),
                     "standard": rule["standard"],
                     "description": rule["description"],
                     "remediation": rule["remediation"],
-                    "recommended_solution": rule["fix_template"],
-                    "references": framework_references(iac_type, rule["references"]),
+                    "recommended_solution": recommended_solution(rule, framework, line),
+                    "references": framework_references(framework),
                 })
     return findings
 
 
-def framework_references(iac_type: str, rule_references: List[str]) -> List[str]:
-    """Combines the rule guidance with references for the detected IaC framework."""
-    return list(dict.fromkeys(rule_references + FRAMEWORK_REFERENCES.get(iac_type, [])))
+def detect_framework(chunk: Dict[str, Any], iac_type: str) -> str:
+    """Refines Terraform detection using path and provider content."""
+    if iac_type != "Terraform":
+        return iac_type
+    source = f"{chunk['file_path']}\n{chunk['content']}".lower()
+    if 'google_' in source or '/gcp/' in source:
+        return "GCP Terraform"
+    if 'azurerm_' in source or '/azure/' in source:
+        return "Azure Terraform"
+    if 'aws_' in source or '/aws/' in source:
+        return "AWS Terraform"
+    return iac_type
+
+
+def framework_references(iac_type: str) -> List[str]:
+    """Returns only references relevant to the detected IaC framework."""
+    return FRAMEWORK_REFERENCES.get(iac_type, [])
+
+
+def recommended_solution(rule: Dict[str, Any], framework: str, line: str) -> str:
+    """Returns a copy-paste replacement in the detected IaC syntax."""
+    title = rule["title"]
+    if title == "Unrestricted Network Ingress":
+        if framework == "Azure ARM Template":
+            return '"sourceAddressPrefix": "10.0.0.0/16"'
+        if framework == "Azure Bicep":
+            return "sourceAddressPrefix: '10.0.0.0/16'"
+        if framework == "GCP Terraform":
+            if re.search(r"\bsource_ranges\b", line):
+                return 'source_ranges = ["10.0.0.0/16"]'
+            return 'value = "10.0.0.0/16"'
+    if title == "Publicly Exposed Resource" and framework.startswith("Azure"):
+        return 'publicNetworkAccess: "Disabled"'
+    if title == "Public Cloud Storage Access" and framework == "GCP Terraform":
+        return 'uniform_bucket_level_access = true'
+    if title == "Storage Encryption Not Configured" and framework == "GCP Terraform":
+        return 'default_kms_key_name = google_kms_crypto_key.storage.id'
+    return rule["fix_template"]
 
 
 def _pdf_escape(value: str) -> str:
@@ -217,7 +264,8 @@ def _pdf_lines(findings: List[Dict[str, Any]]) -> List[str]:
             f"Standard: {finding['standard']}",
             f"Vulnerable Code: {finding['vulnerable_code']}",
             f"Recommended solution: {finding['recommended_solution']}",
-            f"References: {'; '.join(finding['references'])}",
+            "References:",
+            *(f"- {reference}" for reference in finding['references']),
             "",
         ])
     wrapped = []
@@ -321,7 +369,7 @@ def generate_reports(findings: List[Dict[str, Any]], output_dir: Path, report_fo
     md_content += "\n| Severity | Finding | Framework | Full File Path | Line |\n|---|---|---|---|---:|\n"
     for f in ordered:
         md_content += f"| {f.get('severity')} | {f.get('title')} | {f.get('iac_type')} | `{f.get('file')}` | {f.get('line')} |\n"
-        md_content += f"\n**Description:** {f.get('description')}\n\n**Vulnerable Code:**\n```text\n{f.get('vulnerable_code')}\n```\n\n**Recommended solution:**\n```text\n{f.get('recommended_solution')}\n```\n\n**References:** {'; '.join(f.get('references', []))}\n\n"
+        md_content += f"\n**Description:** {f.get('description')}\n\n**Vulnerable Code:**\n```text\n{f.get('vulnerable_code')}\n```\n\n**Recommended solution:**\n```text\n{f.get('recommended_solution')}\n```\n\n**References:**\n\n" + ''.join(f"- {reference}\n" for reference in f.get('references', [])) + "\n"
     html_content = f"""<!DOCTYPE html>
     <!DOCTYPE html>
     <html>
@@ -354,7 +402,7 @@ def generate_reports(findings: List[Dict[str, Any]], output_dir: Path, report_fo
                 <th>Full File Path & Line</th>
                 <th>Description / Code / Fix / References</th>
             </tr>
-            {"".join([f"<tr><td class='{item['severity']}'>{escape(item['severity'])}</td><td><b>{escape(item['title'])}</b><br>{escape(item['standard'])}</td><td>{escape(item['iac_type'])}</td><td><code>{escape(item['file'])}:{item['line']}</code></td><td><b>Description:</b> {escape(item['description'])}<br><b>Vulnerable Code:</b><pre>{escape(item['vulnerable_code'])}</pre><b>Recommended solution:</b><pre>{escape(item['recommended_solution'])}</pre><b>References:</b> {''.join(f'<a href=\"{escape(url, quote=True)}\">{escape(url)}</a><br>' for url in item['references'])}</td></tr>" for item in ordered])}
+            {"".join([f"<tr><td class='{item['severity']}'>{escape(item['severity'])}</td><td><b>{escape(item['title'])}</b><br>{escape(item['standard'])}</td><td>{escape(item['iac_type'])}</td><td><code>{escape(item['file'])}:{item['line']}</code></td><td><b>Description:</b> {escape(item['description'])}<br><b>Vulnerable Code:</b><pre>{escape(item['vulnerable_code'])}</pre><b>Recommended solution:</b><pre>{escape(item['recommended_solution'])}</pre><b>References:</b><ul>{''.join(f'<li><a href=\"{escape(url, quote=True)}\">{escape(url)}</a></li>' for url in item['references'])}</ul></td></tr>" for item in ordered])}
         </table>
     </body>
     </html>
