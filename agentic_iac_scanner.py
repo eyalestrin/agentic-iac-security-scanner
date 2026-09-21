@@ -272,7 +272,7 @@ def _pdf_content(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return content
 
 
-def _pdf_wrap_rows(content: List[Dict[str, Any]], width: int = 92) -> List[Dict[str, Any]]:
+def _pdf_wrap_rows(content: List[Dict[str, Any]], width: int = 78) -> List[Dict[str, Any]]:
     rows = []
     for item in content:
         text = item["text"]
@@ -407,15 +407,15 @@ def generate_reports(findings: List[Dict[str, Any]], output_dir: Path, report_fo
     <html>
     <head>
         <style>
-            body {{ font-family: Arial, sans-serif; margin: 20px; max-width: 100%; overflow-x: hidden; }}
-            h1 {{ color: #1a202c; }}
+            body {{ font-family: Arial, sans-serif; margin: 20px; max-width: 100%; overflow-x: hidden; overflow-wrap: anywhere; word-break: break-word; }}
+            h1, h2, h3, p, small {{ max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }}
             table {{ width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 20px; }}
-            th, td {{ border: 1px solid #cbd5e1; padding: 10px; text-align: left; overflow-wrap: anywhere; word-break: break-word; vertical-align: top; }}
+            th, td {{ border: 1px solid #cbd5e1; padding: 10px; text-align: left; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; vertical-align: top; }}
             th {{ background-color: #f1f5f9; }}
             .CRITICAL {{ color: #dc2626; font-weight: bold; }}
             .HIGH {{ color: #ea580c; font-weight: bold; }}
             .MEDIUM {{ color: #d97706; }}
-            .LOW {{ color: #2563eb; }} pre {{ white-space: pre-wrap; overflow-wrap: anywhere; }}
+            .LOW {{ color: #2563eb; }} pre, code {{ max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }}
         </style>
     </head>
     <body>
